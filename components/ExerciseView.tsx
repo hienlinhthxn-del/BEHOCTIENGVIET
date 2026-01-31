@@ -64,7 +64,7 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
       if (ctx.state === 'suspended') await ctx.resume();
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.0-flash",
         contents: `Đọc to rõ ràng: ${text}`,
         config: {
           responseModalities: [Modality.AUDIO],
@@ -80,12 +80,27 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
         source.start();
         source.onended = () => setIsReadingAloud(null);
       } else {
-        setIsReadingAloud(null);
+        throw new Error("No audio data in response");
       }
     } catch (error) {
-      console.error(error);
-      alert("Không thể tải giọng đọc mẫu. Bé hãy kiểm tra kết nối mạng hoặc mã API nhé!");
-      setIsReadingAloud(null);
+      console.error("Gemini TTS failed, falling back to Web Speech API:", error);
+
+      // Fallback: Sử dụng Web Speech API của trình duyệt
+      try {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'vi-VN';
+        utterance.rate = 0.9;
+        utterance.onend = () => setIsReadingAloud(null);
+        utterance.onerror = (err) => {
+          console.error("Web Speech API error:", err);
+          setIsReadingAloud(null);
+        };
+        window.speechSynthesis.speak(utterance);
+      } catch (fallbackError) {
+        console.error("All TTS options failed:", fallbackError);
+        alert("Không thể phát âm thanh. Bé hãy kiểm tra loa nhé!");
+        setIsReadingAloud(null);
+      }
     }
   };
 

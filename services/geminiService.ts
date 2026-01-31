@@ -199,14 +199,11 @@ export class GeminiService {
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
 
-          // Decode audio dataInt16 (WAV format từ Gemini)
-          const dataInt16 = new Int16Array(bytes.buffer);
-          const buffer = audioCtx.createBuffer(1, dataInt16.length, 24000);
-          const channelData = buffer.getChannelData(0);
-          for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+          // Sử dụng decodeAudioData để xử lý file WAV/MP3 chuẩn từ Gemini
+          const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
 
           const source = audioCtx.createBufferSource();
-          source.buffer = buffer;
+          source.buffer = audioBuffer;
           source.connect(audioCtx.destination);
           source.onended = onEnd;
           source.start();

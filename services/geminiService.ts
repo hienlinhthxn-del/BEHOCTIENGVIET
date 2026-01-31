@@ -17,7 +17,7 @@ export class GeminiService {
   async chat(message: string) {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const chat = ai.chats.create({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-1.5-pro',
       config: {
         systemInstruction: 'Bạn là một trợ lý giáo dục thân thiện dành cho học sinh lớp 1 tại Việt Nam. Hãy trả lời ngắn gọn, dễ hiểu và khích lệ bé học tập.',
       }
@@ -30,7 +30,7 @@ export class GeminiService {
   async searchInfo(query: string) {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: query,
       config: {
         tools: [{ googleSearch: {} }],
@@ -46,7 +46,7 @@ export class GeminiService {
   async generateImage(prompt: string, size: "1K" | "2K" | "4K" = "1K") {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-image-preview',
+      model: 'gemini-1.5-pro', // Lưu ý: Cần model hỗ trợ image nếu dùng generateContent, hoặc dùng Image Generation API riêng
       contents: { parts: [{ text: prompt }] },
       config: {
         imageConfig: { aspectRatio: "1:1", imageSize: size }
@@ -67,7 +67,7 @@ export class GeminiService {
   async generateVideo(prompt: string, orientation: '16:9' | '9:16' = '16:9') {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
+      model: 'veo-2.0-generate-preview', // Tên model Veo thực tế (nếu có quyền truy cập)
       prompt: prompt,
       config: {
         numberOfVideos: 1,
@@ -95,7 +95,7 @@ export class GeminiService {
   async evaluateReading(audioBase64: string, expectedText: string) {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: {
         parts: [
           { inlineData: { data: audioBase64, mimeType: 'audio/webm' } },
@@ -123,7 +123,7 @@ export class GeminiService {
   async evaluateExercise(audioBase64: string, question: string, concept: string) {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: 'gemini-1.5-flash',
       contents: {
         parts: [
           { inlineData: { data: audioBase64, mimeType: 'audio/webm' } },
@@ -152,7 +152,7 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
     const base64Data = imageParts.includes(',') ? imageParts.split(',')[1] : imageParts;
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-1.5-pro',
       contents: {
         parts: [
           { inlineData: { data: base64Data, mimeType: 'image/png' } },

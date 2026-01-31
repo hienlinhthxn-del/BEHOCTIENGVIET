@@ -86,7 +86,7 @@ const ReadingView: React.FC<ReadingViewProps> = ({ lessons, onBack, isTeacherMod
       if (ctx.state === 'suspended') await ctx.resume();
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
+        model: "gemini-2.0-flash-exp",
         contents: `Đọc to rõ ràng cho học sinh lớp 1 nghe: ${text}`,
         config: {
           responseModalities: [Modality.AUDIO],
@@ -106,6 +106,7 @@ const ReadingView: React.FC<ReadingViewProps> = ({ lessons, onBack, isTeacherMod
       }
     } catch (error) {
       console.error(error);
+      alert("Không thể tải giọng đọc mẫu. Bé hãy kiểm tra kết nối mạng hoặc mã API nhé!");
       setIsReadingAloud(null);
     }
   };

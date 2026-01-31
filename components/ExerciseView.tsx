@@ -64,7 +64,7 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
       if (ctx.state === 'suspended') await ctx.resume();
       const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
+        model: "gemini-2.0-flash-exp",
         contents: `Đọc to rõ ràng: ${text}`,
         config: {
           responseModalities: [Modality.AUDIO],
@@ -84,6 +84,7 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
       }
     } catch (error) {
       console.error(error);
+      alert("Không thể tải giọng đọc mẫu. Bé hãy kiểm tra kết nối mạng hoặc mã API nhé!");
       setIsReadingAloud(null);
     }
   };
@@ -174,8 +175,8 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
                     onClick={() => handleOptionSelect(option)}
                     disabled={showFeedback && isCorrect === true}
                     className={`p-8 rounded-[2.5rem] text-3xl font-black transition-all border-b-[12px] shadow-lg flex items-center justify-between group ${selectedOption === option
-                        ? isCorrect ? 'bg-green-500 text-white border-green-700' : 'bg-red-500 text-white border-red-700 animate-shake'
-                        : 'bg-white text-gray-700 border-gray-100 hover:border-yellow-300 hover:-translate-y-2'
+                      ? isCorrect ? 'bg-green-500 text-white border-green-700' : 'bg-red-500 text-white border-red-700 animate-shake'
+                      : 'bg-white text-gray-700 border-gray-100 hover:border-yellow-300 hover:-translate-y-2'
                       }`}
                   >
                     <span className="flex-1 text-center">{option}</span>
@@ -201,10 +202,10 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
                         key={`word-${pair.id}`}
                         onClick={() => handleMatchSelect('word', pair)}
                         className={`w-full p-6 rounded-3xl text-2xl font-black shadow-md transition-all border-b-8 flex items-center justify-center ${matchedIds.includes(pair.id)
-                            ? 'bg-green-500 text-white border-green-700 opacity-50 cursor-default'
-                            : selectedWordId === pair.id
-                              ? 'bg-indigo-600 text-white border-indigo-800 ring-4 ring-indigo-200 scale-105'
-                              : 'bg-white text-gray-700 border-gray-100 hover:border-indigo-300'
+                          ? 'bg-green-500 text-white border-green-700 opacity-50 cursor-default'
+                          : selectedWordId === pair.id
+                            ? 'bg-indigo-600 text-white border-indigo-800 ring-4 ring-indigo-200 scale-105'
+                            : 'bg-white text-gray-700 border-gray-100 hover:border-indigo-300'
                           }`}
                       >
                         {pair.word}
@@ -217,10 +218,10 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
                         key={`target-${pair.id}`}
                         onClick={() => handleMatchSelect('target', pair)}
                         className={`w-full p-6 rounded-3xl flex items-center justify-center shadow-md transition-all border-b-8 ${matchedIds.includes(pair.id)
-                            ? 'bg-green-500 text-white border-green-700 opacity-50 cursor-default'
-                            : wrongId === pair.id
-                              ? 'bg-red-500 text-white border-red-700 animate-shake'
-                              : 'bg-white text-indigo-500 border-gray-100 hover:border-indigo-300'
+                          ? 'bg-green-500 text-white border-green-700 opacity-50 cursor-default'
+                          : wrongId === pair.id
+                            ? 'bg-red-500 text-white border-red-700 animate-shake'
+                            : 'bg-white text-indigo-500 border-gray-100 hover:border-indigo-300'
                           }`}
                       >
                         <Volume2 size={32} />

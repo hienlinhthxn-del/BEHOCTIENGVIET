@@ -113,9 +113,9 @@ const WritingView: React.FC<WritingViewProps> = ({ onBack, onSaveProgress }) => 
     }
   };
 
-  const handleSpeak = () => {
+  const handleSpeak = async () => {
     // Sử dụng GeminiService để thống nhất logic và sửa lỗi giải mã âm thanh
-    gemini.speak(selectedExercise.text, () => { }, () => { });
+    await gemini.speak(selectedExercise.text, () => { }, () => { });
   };
 
   const renderStars = (score: number) => {
@@ -162,8 +162,8 @@ const WritingView: React.FC<WritingViewProps> = ({ onBack, onSaveProgress }) => 
                   key={ex.id}
                   onClick={() => handleExerciseSelect(ex)}
                   className={`aspect-square flex items-center justify-center rounded-2xl text-xl font-bold transition-all border-2 ${selectedExercise.id === ex.id
-                      ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-inner scale-105 ring-4 ring-blue-50'
-                      : 'bg-gray-50 border-transparent text-gray-600 hover:border-gray-200'
+                    ? 'bg-blue-50 border-blue-500 text-blue-600 shadow-inner scale-105 ring-4 ring-blue-50'
+                    : 'bg-gray-50 border-transparent text-gray-600 hover:border-gray-200'
                     }`}
                 >
                   {ex.label}

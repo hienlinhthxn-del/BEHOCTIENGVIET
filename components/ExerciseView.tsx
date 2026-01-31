@@ -59,7 +59,7 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
 
   const handleReadAloud = async (text: string, id: string) => {
     if (isReadingAloud === id) return;
-    gemini.speak(text, () => setIsReadingAloud(id), () => setIsReadingAloud(null));
+    await gemini.speak(text, () => setIsReadingAloud(id), () => setIsReadingAloud(null));
   };
 
   const handleOptionSelect = (option: string) => {

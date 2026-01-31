@@ -1,0 +1,8 @@
+{
+  "name": "Bé Học Tiếng Việt 1",
+  "description": "Ứng dụng học tập thông minh dành cho học sinh lớp 1 theo bộ sách Kết nối tri thức với cuộc sống, tích hợp trí tuệ nhân tạo Gemini giúp bé tập đọc, tập viết và sáng tạo hình ảnh, video.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

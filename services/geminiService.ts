@@ -174,4 +174,70 @@ export class GeminiService {
       comment: commentMatch ? commentMatch[1] : "Bé viết đẹp lắm, cố gắng nhé!"
     };
   }
+  // Phát âm văn bản (TTS) với fallback và chẩn đoán
+  async speak(text: string, onStart: () => void, onEnd: () => void) {
+    onStart();
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+    // 1. Thử dùng Gemini AI (Chất lượng cao nhất)
+    if (apiKey && !apiKey.includes("PLACEHOLDER")) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-1.5-flash", // Dùng bản flash ổn định
+          contents: `Đọc to rõ ràng: ${text}`,
+          config: {
+            responseModalities: [Modality.AUDIO],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          },
+        });
+
+        const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+        if (base64Audio) {
+          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const binaryString = atob(base64Audio);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+
+          // Decode audio dataInt16 (WAV format từ Gemini)
+          const dataInt16 = new Int16Array(bytes.buffer);
+          const buffer = audioCtx.createBuffer(1, dataInt16.length, 24000);
+          const channelData = buffer.getChannelData(0);
+          for (let i = 0; i < dataInt16.length; i++) channelData[i] = dataInt16[i] / 32768.0;
+
+          const source = audioCtx.createBufferSource();
+          source.buffer = buffer;
+          source.connect(audioCtx.destination);
+          source.onended = onEnd;
+          source.start();
+          return; // Thành công
+        }
+      } catch (err) {
+        console.error("Gemini TTS Error:", err);
+      }
+    } else {
+      console.warn("VITE_GEMINI_API_KEY is missing or invalid on Vercel.");
+    }
+
+    // 2. Fallback sang Web Speech API (Giọng đọc máy tính)
+    try {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 1.0;
+      utterance.onend = onEnd;
+      utterance.onerror = (e) => {
+        console.error("Web Speech Error:", e);
+        alert("Lỗi giọng đọc hệ thống. Hãy kiểm tra trình duyệt của bạn.");
+        onEnd();
+      };
+
+      // Khắc phục lỗi SpeechSynthesis đôi khi không kêu trên mobile
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.error("All TTS failed:", err);
+      alert("Không thể phát âm thanh. Bé hãy kiểm tra loa hoặc dùng Google Chrome nhé!");
+      onEnd();
+    }
+  }
 }

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Lesson, Exercise, MatchingPair } from '../types';
 import { ChevronLeft, Trophy, Star, Sparkles, X, PartyPopper, Lightbulb, Volume2, CheckCircle2, AlertCircle, Link2, MousePointer2 } from 'lucide-react';
 import { GoogleGenAI, Modality } from '@google/genai';
+import { GeminiService } from '../services/geminiService';
 
 interface ExerciseViewProps {
   lessons: Lesson[];
@@ -23,6 +24,7 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
   const [isReadingAloud, setIsReadingAloud] = useState<string | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
+  const gemini = GeminiService.getInstance();
 
   const lessonsWithExercises = lessons.filter(l => l.content.exercises && l.content.exercises.length > 0);
 
@@ -57,51 +59,7 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
 
   const handleReadAloud = async (text: string, id: string) => {
     if (isReadingAloud === id) return;
-    setIsReadingAloud(id);
-    try {
-      if (!audioContextRef.current) audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-      const ctx = audioContextRef.current;
-      if (ctx.state === 'suspended') await ctx.resume();
-      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.0-flash",
-        contents: `Đọc to rõ ràng: ${text}`,
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
-        },
-      });
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (base64Audio) {
-        const audioBuffer = await decodeAudioData(decode(base64Audio), ctx, 24000, 1);
-        const source = ctx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(ctx.destination);
-        source.start();
-        source.onended = () => setIsReadingAloud(null);
-      } else {
-        throw new Error("No audio data in response");
-      }
-    } catch (error) {
-      console.error("Gemini TTS failed, falling back to Web Speech API:", error);
-
-      // Fallback: Sử dụng Web Speech API của trình duyệt
-      try {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'vi-VN';
-        utterance.rate = 0.9;
-        utterance.onend = () => setIsReadingAloud(null);
-        utterance.onerror = (err) => {
-          console.error("Web Speech API error:", err);
-          setIsReadingAloud(null);
-        };
-        window.speechSynthesis.speak(utterance);
-      } catch (fallbackError) {
-        console.error("All TTS options failed:", fallbackError);
-        alert("Không thể phát âm thanh. Bé hãy kiểm tra loa nhé!");
-        setIsReadingAloud(null);
-      }
-    }
+    gemini.speak(text, () => setIsReadingAloud(id), () => setIsReadingAloud(null));
   };
 
   const handleOptionSelect = (option: string) => {

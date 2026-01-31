@@ -3,6 +3,7 @@ import { GoogleGenAI, Type, Modality } from "@google/genai";
 
 export class GeminiService {
   private static instance: GeminiService;
+  private audioCtx: AudioContext | null = null;
 
   private constructor() { }
 
@@ -177,6 +178,19 @@ export class GeminiService {
   // Phát âm văn bản (TTS) với fallback và chẩn đoán
   async speak(text: string, onStart: () => void, onEnd: () => void) {
     onStart();
+
+    // FIX: Khởi tạo/Resume AudioContext NGAY LẬP TỨC để giữ quyền phát âm thanh từ sự kiện click
+    if (!this.audioCtx) {
+      this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+
+    const ctx = this.audioCtx;
+    if (!ctx) return;
+
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
     // 1. Thử dùng Gemini AI (Chất lượng cao nhất)
@@ -194,17 +208,16 @@ export class GeminiService {
 
         const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
         if (base64Audio) {
-          const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
           const binaryString = atob(base64Audio);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
 
           // Sử dụng decodeAudioData để xử lý file WAV/MP3 chuẩn từ Gemini
-          const audioBuffer = await audioCtx.decodeAudioData(bytes.buffer);
+          const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
 
-          const source = audioCtx.createBufferSource();
+          const source = ctx.createBufferSource();
           source.buffer = audioBuffer;
-          source.connect(audioCtx.destination);
+          source.connect(ctx.destination);
           source.onended = onEnd;
           source.start();
           return; // Thành công

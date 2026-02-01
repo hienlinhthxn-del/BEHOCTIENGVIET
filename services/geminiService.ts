@@ -128,9 +128,9 @@ export class GeminiService {
 
       console.log("Raw AI response:", rawText);
 
-      // Làm sạch chuỗi JSON nếu AI thêm ```json ... ```
-      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      const result = JSON.parse(cleanedJson);
+      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("AI_RESPONSE_NOT_JSON");
+      const result = JSON.parse(jsonMatch[0]);
 
       return {
         score: Number(result.score) || 0,
@@ -138,8 +138,7 @@ export class GeminiService {
       };
     } catch (err: any) {
       console.error("Lỗi evaluateReading:", err);
-      // Fallback nếu JSON parse lỗi
-      return { score: 0, comment: "Cô chưa nghe rõ nội dung, bé thử lại nhé!" };
+      return { score: 0, comment: "Cô đang bận một chút, bé thử lại sau nhé!" };
     }
   }
 
@@ -231,55 +230,36 @@ export class GeminiService {
       const doSpeak = () => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'vi-VN';
-        utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
 
-        // 1. Ưu tiên tuyệt đối các giọng Nữ miền Bắc chuẩn
-        // - Google Tiếng Việt: Giọng nữ miền Bắc (Chrome)
-        // - Microsoft HoaiMy: Giọng nữ miền Bắc (Windows)
-        // 1. Tìm giọng Nữ miền Bắc (ưu tiên cao nhất)
-        let viVoice = voices.find(v => v.name.includes('Google') && v.name.includes('Tiếng Việt'))
-          || voices.find(v => v.name.includes('Online')) // Ưu tiên các giọng Edge Online chất lượng cao
-          || voices.find(v => v.name.includes('HoaiMy'))
-          || voices.find(v => v.name.includes('Lan'))
-          || voices.find(v => v.name.includes('Hanoi') && (v.name.includes('Female') || v.name.includes('Nữ')));
-
-        // 2. Tìm bất kỳ giọng Nữ Việt Nam nào
-        if (!viVoice) {
-          viVoice = voices.find(v =>
-            (v.lang.includes('vi') || v.name.includes('Vietnamese')) &&
-            (v.name.includes('Female') || v.name.includes('Nữ') || v.name.includes('Linh') || v.name.includes('HoaiMy') || v.name.includes('Lan'))
-          );
+        // Log all voices to help remote debugging
+        if (voices.length > 0 && !(window as any).hasLoggedVoices) {
+          console.log("Danh sách giọng đọc khả dụng:");
+          console.table(voices.map(v => ({ name: v.name, lang: v.lang })));
+          (window as any).hasLoggedVoices = true;
         }
 
-        // 3. Nếu vẫn không thấy, tìm giọng Việt (loại trừ Nam/An/Mạnh nếu có thể, trừ khi là duy nhất)
-        if (!viVoice) {
-          viVoice = voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && !v.name.includes('An') && !v.name.includes('Nam') && !v.name.includes('Mạnh'));
-          if (!viVoice) {
-            viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
-          }
-        }
+        // 1. Tìm giọng phù hợp (Ưu tiên Online/Nữ)
+        let viVoice = voices.find(v => v.name.includes('Online') && (v.name.includes('HoaiMy') || v.name.includes('Lan') || v.name.includes('Trang')))
+          || voices.find(v => v.name.includes('Google') && v.name.includes('Tiếng Việt'))
+          || voices.find(v => v.name.includes('HoaiMy') || v.name.includes('Lan') || v.name.includes('Linh'))
+          || voices.find(v => (v.name.includes('Female') || v.name.includes('Nữ')) && (v.lang.startsWith('vi')))
+          || voices.find(v => v.lang.startsWith('vi'));
 
         if (viVoice) {
           utterance.voice = viVoice;
-          console.log("Selected voice:", viVoice.name);
-          // Kiểm tra xem có phải giọng nữ thực sự không
-          const isFemale = viVoice.name.includes('Female') ||
-            viVoice.name.includes('Nữ') ||
-            viVoice.name.includes('HoaiMy') ||
-            viVoice.name.includes('Lan') ||
-            viVoice.name.includes('Linh') ||
-            viVoice.name.includes('Google') ||
-            viVoice.name.includes('Trang') ||
-            viVoice.name.includes('Thuy') ||
-            viVoice.name.includes('Hương') ||
-            viVoice.name.includes('Online');
+          const name = viVoice.name.toLowerCase();
+          const femaleKeywords = ['female', 'nữ', 'hoaimy', 'lan', 'linh', 'online', 'trang', 'thuy', 'hương'];
+          const isFemale = femaleKeywords.some(k => name.includes(k));
+
+          console.log(`[Giọng Máy] Chọn: ${viVoice.name} (${isFemale ? "Nữ" : "Nam - Ép giọng"})`);
 
           if (isFemale) {
             utterance.pitch = 1.0;
+            utterance.rate = 0.9;
           } else {
-            // Nếu là giọng Nam hoặc không rõ -> Ép pitch cao hẳn (1.9) để giả giọng nữ
+            console.warn("[Giọng Máy] Đang dùng giọng Nam với pitch 2.0");
             utterance.pitch = 2.0;
-            utterance.rate = 0.85;
+            utterance.rate = 0.8;
           }
         } else {
           utterance.pitch = 2.0;
@@ -287,7 +267,7 @@ export class GeminiService {
 
         utterance.onend = safeOnEnd;
         utterance.onerror = (e) => {
-          console.error("Lỗi giọng đọc trình duyệt:", e);
+          console.error("[TTS] Lỗi:", e);
           safeOnEnd();
         };
         window.speechSynthesis.speak(utterance);

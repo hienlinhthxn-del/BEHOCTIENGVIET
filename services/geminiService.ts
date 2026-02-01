@@ -210,7 +210,9 @@ export class GeminiService {
         // - Google Tiếng Việt: Giọng nữ miền Bắc (Chrome)
         // - Microsoft HoaiMy: Giọng nữ miền Bắc (Windows)
         let viVoice = voices.find(v => v.name === 'Google Tiếng Việt')
-          || voices.find(v => v.name.includes('HoaiMy'));
+          || voices.find(v => v.name.includes('HoaiMy')) // Microsoft Northern Female Natural
+          || voices.find(v => v.name.includes('Lan')) // Microsoft Northern Female Legacy
+          || voices.find(v => v.name.includes('Hanoi')); // General Northern
 
         // 2. Nếu không có, tìm giọng Nữ khác (Linh - iOS, hoặc generic Female)
         if (!viVoice) {

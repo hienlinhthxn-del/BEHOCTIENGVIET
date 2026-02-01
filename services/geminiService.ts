@@ -15,7 +15,8 @@ export class GeminiService {
 
   // Trò chuyện giáo dục
   async chat(message: string) {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     const chat = ai.chats.create({
       model: 'gemini-1.5-pro',
       config: {
@@ -28,7 +29,8 @@ export class GeminiService {
 
   // Tìm kiếm thông tin
   async searchInfo(query: string) {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: query,
@@ -44,7 +46,8 @@ export class GeminiService {
 
   // Vẽ tranh
   async generateImage(prompt: string, size: "1K" | "2K" | "4K" = "1K") {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
       contents: { parts: [{ text: prompt }] },
@@ -65,7 +68,8 @@ export class GeminiService {
 
   // Tạo video
   async generateVideo(prompt: string, orientation: '16:9' | '9:16' = '16:9') {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     let operation = await ai.models.generateVideos({
       model: 'veo-2.0-generate-preview',
       prompt: prompt,
@@ -85,12 +89,13 @@ export class GeminiService {
     if (!downloadLink) {
       throw new Error("Video generation failed");
     }
-    return `${downloadLink}&key=${import.meta.env.VITE_GEMINI_API_KEY}`;
+    return `${downloadLink}&key=${apiKey}`;
   }
 
   // Chấm điểm đọc
   async evaluateReading(audioBase64: string, expectedText: string) {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: {
@@ -118,7 +123,8 @@ export class GeminiService {
 
   // Chấm điểm bài tập
   async evaluateExercise(audioBase64: string, question: string, concept: string) {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: {
@@ -146,7 +152,8 @@ export class GeminiService {
 
   // Chấm điểm tập viết
   async evaluateWriting(imageParts: string, expectedText: string) {
-    const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
+    const ai = new GoogleGenAI({ apiKey });
     const base64Data = imageParts.includes(',') ? imageParts.split(',')[1] : imageParts;
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-pro',
@@ -174,32 +181,63 @@ export class GeminiService {
 
   // Phát âm văn bản (TTS) với fallback và chẩn đoán
   async speak(text: string, onStart: () => void, onEnd: () => void) {
-    try {
-      onStart();
+    // Đảm bảo onEnd luôn được gọi để không bị treo trạng thái
+    let hasEnded = false;
+    const safeOnEnd = () => {
+      if (!hasEnded) {
+        hasEnded = true;
+        onEnd();
+      }
+    };
 
+    // Hàm fallback dùng giọng đọc của trình duyệt (khi hết quota hoặc lỗi mạng)
+    const playFallback = () => {
+      console.log("Dùng giọng đọc trình duyệt (Fallback)");
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
+
+      // Cố gắng tìm giọng Google Tiếng Việt hoặc giọng Việt bất kỳ
+      const voices = window.speechSynthesis.getVoices();
+      const viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
+      if (viVoice) utterance.voice = viVoice;
+
+      utterance.onend = safeOnEnd;
+      utterance.onerror = (e) => {
+        console.error("Lỗi giọng đọc trình duyệt:", e);
+        safeOnEnd();
+      };
+      window.speechSynthesis.speak(utterance);
+    };
+
+    try {
       // Khởi tạo AudioContext ngay khi click
       if (!this.audioCtx) {
         this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      const ctx = this.audioCtx;
-      if (ctx.state === 'suspended') {
-        await ctx.resume();
+      if (this.audioCtx.state === 'suspended') {
+        await this.audioCtx.resume();
       }
 
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      onStart();
+
+      // Lấy API Key từ nhiều nguồn để đảm bảo không bị lỗi undefined
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
 
       // Chẩn đoán lỗi API Key
       if (!apiKey || apiKey.includes("PLACEHOLDER") || apiKey.length < 10) {
+        console.warn("API Key không hợp lệ hoặc chưa được cấu hình. Chuyển sang giọng máy.");
         throw new Error("MISSING_API_KEY");
       }
 
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
-        contents: `Đọc to rõ ràng cho học sinh lớp 1 nghe: ${text}`,
+        contents: `Đọc văn bản sau bằng tiếng Việt, giọng nữ, nhẹ nhàng: "${text}"`,
         config: {
           responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
+          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
         },
       });
 
@@ -209,36 +247,19 @@ export class GeminiService {
         const bytes = new Uint8Array(binaryString.length);
         for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
 
-        const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
-        const source = ctx.createBufferSource();
+        const audioBuffer = await this.audioCtx.decodeAudioData(bytes.buffer);
+        const source = this.audioCtx.createBufferSource();
         source.buffer = audioBuffer;
-        source.connect(ctx.destination);
-        source.onended = onEnd;
+        source.connect(this.audioCtx.destination);
+        source.onended = safeOnEnd;
         source.start();
         return;
       } else {
         throw new Error("AI_NO_AUDIO");
       }
     } catch (err: any) {
-      console.error("Audio error:", err);
-
-      if (err.message === "MISSING_API_KEY") {
-        alert("⚠️ Bạn chưa cấu hình VITE_GEMINI_API_KEY trên Vercel. Sẽ dùng giọng máy tính.");
-      }
-
-      // Fallback
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'vi-VN';
-        utterance.rate = 1.0;
-        utterance.onend = onEnd;
-        utterance.onerror = () => onEnd();
-        window.speechSynthesis.speak(utterance);
-      } catch (f) {
-        alert("❌ Lỗi loa. Hãy dùng Chrome.");
-        onEnd();
-      }
+      console.warn("Lỗi Gemini Audio, chuyển sang giọng máy:", err);
+      playFallback();
     }
   }
 }

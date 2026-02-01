@@ -103,17 +103,19 @@ export class GeminiService {
           { inlineData: { data: audioBase64, mimeType: 'audio/webm' } },
           {
             text: `Đây là âm thanh học sinh lớp 1 Việt Nam đọc bài: "${expectedText}". 
-          Hãy nghe và chấm điểm từ 0-10. Nhận xét thật thân thiện kiểu cô giáo tiểu học.
-          Định dạng trả về:
+          Hãy nghe và chấm điểm từ 0-10 dựa trên độ chính xác và trôi chảy. 
+          Nhận xét thật thân thiện, khích lệ kiểu cô giáo tiểu học (ví dụ: "Con đọc tốt lắm", "Con cần cố gắng vần 'an' nhé").
+          
+          YÊU CẦU TRẢ VỀ THEO ĐỊNH DẠNG SAU (KHÔNG THÊM GÌ KHÁC):
           DIEM: [số]
           NHANXET: [lời của cô]` }
         ]
       }
     });
 
-    const text = response.text || "";
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
-    const commentMatch = text.match(/NHANXET:\s*(.+)/i);
+    const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
 
     return {
       score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
@@ -140,9 +142,9 @@ export class GeminiService {
       }
     });
 
-    const text = response.text || "";
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
-    const commentMatch = text.match(/NHANXET:\s*(.+)/i);
+    const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
 
     return {
       score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
@@ -169,9 +171,9 @@ export class GeminiService {
       }
     });
 
-    const text = response.text || "";
+    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
-    const commentMatch = text.match(/NHANXET:\s*(.+)/i);
+    const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
 
     return {
       score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
@@ -209,34 +211,51 @@ export class GeminiService {
         // 1. Ưu tiên tuyệt đối các giọng Nữ miền Bắc chuẩn
         // - Google Tiếng Việt: Giọng nữ miền Bắc (Chrome)
         // - Microsoft HoaiMy: Giọng nữ miền Bắc (Windows)
-        let viVoice = voices.find(v => v.name === 'Google Tiếng Việt')
-          || voices.find(v => v.name.includes('HoaiMy')) // Microsoft Northern Female Natural
-          || voices.find(v => v.name.includes('Lan')) // Microsoft Northern Female Legacy
-          || voices.find(v => v.name.includes('Hanoi')); // General Northern
+        // 1. Tìm giọng Nữ miền Bắc (ưu tiên cao nhất)
+        let viVoice = voices.find(v => v.name.includes('Google') && v.name.includes('Tiếng Việt'))
+          || voices.find(v => v.name.includes('HoaiMy'))
+          || voices.find(v => v.name.includes('Lan'))
+          || voices.find(v => v.name.includes('Hanoi') && (v.name.includes('Female') || v.name.includes('Nữ')));
 
-        // 2. Nếu không có, tìm giọng Nữ khác (Linh - iOS, hoặc generic Female)
+        // 2. Tìm bất kỳ giọng Nữ Việt Nam nào
         if (!viVoice) {
-          viVoice = voices.find(v => v.name.includes('Linh')) ||
-            voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && (v.name.includes('Female') || v.name.includes('Nữ')));
+          viVoice = voices.find(v =>
+            (v.lang.includes('vi') || v.name.includes('Vietnamese')) &&
+            (v.name.includes('Female') || v.name.includes('Nữ') || v.name.includes('Linh') || v.name.includes('HoaiMy') || v.name.includes('Lan'))
+          );
         }
 
-        // 3. Đường cùng: Lấy bất kỳ giọng Việt nào
+        // 3. Nếu vẫn không thấy, tìm giọng Việt (loại trừ Nam/An/Mạnh nếu có thể, trừ khi là duy nhất)
         if (!viVoice) {
-          viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
+          viVoice = voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && !v.name.includes('An') && !v.name.includes('Nam') && !v.name.includes('Mạnh'));
+          if (!viVoice) {
+            viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
+          }
         }
 
         if (viVoice) {
           utterance.voice = viVoice;
-          // Nếu là giọng nữ chuẩn (Google, HoaiMy, Linh) -> Pitch bình thường
-          if (viVoice.name === 'Google Tiếng Việt' || viVoice.name.includes('HoaiMy') || viVoice.name.includes('Linh') || viVoice.name.includes('Female') || viVoice.name.includes('Nữ')) {
+          console.log("Selected voice:", viVoice.name);
+          // Kiểm tra xem có phải giọng nữ thực sự không
+          const isFemale = viVoice.name.includes('Female') ||
+            viVoice.name.includes('Nữ') ||
+            viVoice.name.includes('HoaiMy') ||
+            viVoice.name.includes('Lan') ||
+            viVoice.name.includes('Linh') ||
+            viVoice.name.includes('Google') ||
+            viVoice.name.includes('Trang') ||
+            viVoice.name.includes('Thuy') ||
+            viVoice.name.includes('Hương');
+
+          if (isFemale) {
             utterance.pitch = 1.0;
           } else {
-            // Nếu phải dùng giọng Nam/Khác -> Tăng pitch để giả giọng nữ
-            utterance.pitch = 1.6;
+            // Nếu là giọng Nam hoặc không rõ -> Ép pitch cao hẳn (1.9) để giả giọng nữ
+            utterance.pitch = 1.9;
+            utterance.rate = 0.85;
           }
         } else {
-          // Không tìm thấy giọng Việt nào -> Dùng giọng hệ thống ép pitch cao
-          utterance.pitch = 1.6;
+          utterance.pitch = 1.9;
         }
 
         utterance.onend = safeOnEnd;
@@ -296,7 +315,7 @@ export class GeminiService {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
           },
         },
       });

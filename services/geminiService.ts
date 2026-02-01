@@ -193,6 +193,10 @@ export class GeminiService {
     // Hàm fallback dùng giọng đọc của trình duyệt (khi hết quota hoặc lỗi mạng)
     const playFallback = () => {
       console.log("Dùng giọng đọc trình duyệt (Fallback)");
+      if (typeof window === 'undefined' || !window.speechSynthesis) {
+        safeOnEnd();
+        return;
+      }
       window.speechSynthesis.cancel();
 
       let voices = window.speechSynthesis.getVoices();
@@ -255,13 +259,22 @@ export class GeminiService {
       } else {
         doSpeak();
       }
-    }
+    };
 
     try {
       onStart();
 
       // Lấy API Key từ nhiều nguồn để đảm bảo không bị lỗi undefined
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
+      let apiKey = '';
+      try {
+        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      } catch {
+        // Ignore if import.meta is not available
+      }
+
+      if (!apiKey && typeof process !== 'undefined') {
+        apiKey = (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
+      }
 
       // Chẩn đoán lỗi API Key
       if (!apiKey || apiKey.includes("PLACEHOLDER") || apiKey.length < 10) {

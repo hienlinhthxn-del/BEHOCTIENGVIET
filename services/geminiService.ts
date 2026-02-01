@@ -197,17 +197,37 @@ export class GeminiService {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'vi-VN';
       utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
-      utterance.pitch = 1.2; // Tăng cao độ để giọng trong trẻo hơn (giống cô giáo/trẻ em)
 
-      // Cố gắng tìm giọng Google Tiếng Việt (thường là Nữ miền Bắc) hoặc giọng Việt bất kỳ
+      // CHIẾN THUẬT CHỌN GIỌNG:
       const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.name === 'Google Tiếng Việt')
-        || voices.find(v => v.name.includes('HoaiMy')) // Giọng nữ miền Bắc trên Windows
-        || voices.find(v => v.name.includes('Linh'))   // Giọng nữ miền Bắc trên iOS
-        // Tìm giọng nữ bất kỳ (thường chứa 'Female' hoặc tránh tên nam phổ biến)
-        || voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && !v.name.includes('An') && !v.name.includes('Nam'))
-        || voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
-      if (viVoice) utterance.voice = viVoice;
+
+      // 1. Ưu tiên tuyệt đối các giọng Nữ chuẩn
+      let viVoice = voices.find(v => v.name === 'Google Tiếng Việt') // Chrome (Nữ miền Bắc)
+        || voices.find(v => v.name.includes('HoaiMy')) // Windows (Nữ miền Bắc)
+        || voices.find(v => v.name.includes('Linh'));  // iOS (Nữ)
+
+      // 2. Nếu không có, tìm giọng bất kỳ có chữ Female/Nữ
+      if (!viVoice) {
+        viVoice = voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && (v.name.includes('Female') || v.name.includes('Nữ')));
+      }
+
+      // 3. Đường cùng: Lấy bất kỳ giọng Việt nào (thường là Microsoft An)
+      if (!viVoice) {
+        viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
+      }
+
+      if (viVoice) {
+        utterance.voice = viVoice;
+        // QUAN TRỌNG: Nếu phát hiện giọng Nam (An, Nam, Male), tăng Pitch thật cao để giả giọng Nữ
+        if (viVoice.name.includes('An') || viVoice.name.includes('Nam') || viVoice.name.includes('Male')) {
+          utterance.pitch = 1.8; // Mức 1.8 sẽ biến giọng nam trầm thành giọng thanh
+        } else {
+          utterance.pitch = 1.1; // Giọng nữ thì giữ tự nhiên
+        }
+      } else {
+        // Không tìm thấy giọng nào, cứ tăng pitch đề phòng mặc định là nam
+        utterance.pitch = 1.6;
+      }
 
       utterance.onend = safeOnEnd;
       utterance.onerror = (e) => {

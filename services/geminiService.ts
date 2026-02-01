@@ -288,7 +288,7 @@ export class GeminiService {
         model: "gemini-1.5-flash",
         contents: {
           parts: [{
-            text: `Hãy đọc văn bản sau bằng giọng nữ miền Bắc, nhẹ nhàng, chuẩn tiếng Việt, dành cho học sinh lớp 1: "${text}"`
+            text: `Bạn là một giáo viên tiểu học ở Hà Nội. Hãy đọc văn bản sau bằng giọng nữ miền Bắc chuẩn (accent Hà Nội), nhẹ nhàng, truyền cảm, tốc độ chậm rãi để học sinh lớp 1 dễ dàng nghe và bắt chước theo: "${text}"`
           }]
         },
         config: {

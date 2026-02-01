@@ -203,6 +203,8 @@ export class GeminiService {
       const viVoice = voices.find(v => v.name === 'Google Tiếng Việt')
         || voices.find(v => v.name.includes('HoaiMy')) // Giọng nữ miền Bắc trên Windows
         || voices.find(v => v.name.includes('Linh'))   // Giọng nữ miền Bắc trên iOS
+        // Tìm giọng nữ bất kỳ (thường chứa 'Female' hoặc tránh tên nam phổ biến)
+        || voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && !v.name.includes('An') && !v.name.includes('Nam'))
         || voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
       if (viVoice) utterance.voice = viVoice;
 
@@ -235,7 +237,7 @@ export class GeminiService {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
           },
         },
       });

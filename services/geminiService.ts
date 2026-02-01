@@ -200,7 +200,10 @@ export class GeminiService {
 
       // Cố gắng tìm giọng Google Tiếng Việt (thường là Nữ miền Bắc) hoặc giọng Việt bất kỳ
       const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.name === 'Google Tiếng Việt') || voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
+      const viVoice = voices.find(v => v.name === 'Google Tiếng Việt')
+        || voices.find(v => v.name.includes('HoaiMy')) // Giọng nữ miền Bắc trên Windows
+        || voices.find(v => v.name.includes('Linh'))   // Giọng nữ miền Bắc trên iOS
+        || voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
       if (viVoice) utterance.voice = viVoice;
 
       utterance.onend = safeOnEnd;
@@ -231,7 +234,9 @@ export class GeminiService {
         contents: `Đọc văn bản sau bằng tiếng Việt, giọng nữ miền Bắc, nhẹ nhàng, chuẩn xác: "${text}"`,
         config: {
           responseModalities: [Modality.AUDIO],
-          // Bỏ voiceName cụ thể để tránh lỗi nếu model không hỗ trợ, để mặc định
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
+          },
         },
       });
 

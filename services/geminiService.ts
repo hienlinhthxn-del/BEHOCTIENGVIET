@@ -198,9 +198,9 @@ export class GeminiService {
       utterance.lang = 'vi-VN';
       utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
 
-      // Cố gắng tìm giọng Google Tiếng Việt hoặc giọng Việt bất kỳ
+      // Cố gắng tìm giọng Google Tiếng Việt (thường là Nữ miền Bắc) hoặc giọng Việt bất kỳ
       const voices = window.speechSynthesis.getVoices();
-      const viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
+      const viVoice = voices.find(v => v.name === 'Google Tiếng Việt') || voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
       if (viVoice) utterance.voice = viVoice;
 
       utterance.onend = safeOnEnd;
@@ -228,7 +228,7 @@ export class GeminiService {
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
-        contents: `Đọc văn bản sau bằng tiếng Việt, giọng nữ, nhẹ nhàng: "${text}"`,
+        contents: `Đọc văn bản sau bằng tiếng Việt, giọng nữ miền Bắc, nhẹ nhàng, chuẩn xác: "${text}"`,
         config: {
           responseModalities: [Modality.AUDIO],
           // Bỏ voiceName cụ thể để tránh lỗi nếu model không hỗ trợ, để mặc định

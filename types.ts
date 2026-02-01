@@ -74,6 +74,7 @@ export interface LessonContent {
   sentences?: string[];
   paragraphs?: string[];
   exercises?: Exercise[];
+  pronunciationOverrides?: { [key: string]: string }; // key: từ hiển thị, value: từ để đọc
 }
 
 export interface Lesson {

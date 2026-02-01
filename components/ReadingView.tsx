@@ -60,7 +60,25 @@ const ReadingView: React.FC<ReadingViewProps> = ({ lessons, onBack, isTeacherMod
 
   const handleReadAloud = async (text: string, id: string) => {
     if (isReadingAloud === id) return;
-    await gemini.speak(text, () => setIsReadingAloud(id), () => setIsReadingAloud(null));
+
+    // Kiểm tra xem có cấu hình sửa lỗi phát âm cho từ này không
+    let textToSpeak = text;
+    const overrides = selectedLesson?.content.pronunciationOverrides;
+
+    if (overrides) {
+      // Nếu khớp chính xác từ đơn
+      if (overrides[text]) {
+        textToSpeak = overrides[text];
+      } else if (text.includes(',')) {
+        // Nếu là danh sách (nút Loa to), thử thay thế từng từ trong danh sách
+        textToSpeak = text.split(',').map(part => {
+          const trimmed = part.trim();
+          return overrides[trimmed] || part;
+        }).join(',');
+      }
+    }
+
+    await gemini.speak(textToSpeak, () => setIsReadingAloud(id), () => setIsReadingAloud(null));
   };
 
   const handleMatchSelect = (type: 'word' | 'target', pair: MatchingPair) => {

@@ -212,14 +212,6 @@ export class GeminiService {
     };
 
     try {
-      // Khởi tạo AudioContext ngay khi click
-      if (!this.audioCtx) {
-        this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      if (this.audioCtx.state === 'suspended') {
-        await this.audioCtx.resume();
-      }
-
       onStart();
 
       // Lấy API Key từ nhiều nguồn để đảm bảo không bị lỗi undefined
@@ -227,8 +219,10 @@ export class GeminiService {
 
       // Chẩn đoán lỗi API Key
       if (!apiKey || apiKey.includes("PLACEHOLDER") || apiKey.length < 10) {
-        console.warn("API Key không hợp lệ hoặc chưa được cấu hình. Chuyển sang giọng máy.");
-        throw new Error("MISSING_API_KEY");
+        // Nếu không có key, chuyển ngay sang fallback để tránh delay gây lỗi trên mobile
+        console.warn("Chưa có API Key, dùng giọng máy tính ngay lập tức.");
+        playFallback();
+        return;
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -237,22 +231,20 @@ export class GeminiService {
         contents: `Đọc văn bản sau bằng tiếng Việt, giọng nữ, nhẹ nhàng: "${text}"`,
         config: {
           responseModalities: [Modality.AUDIO],
-          speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } } },
+          // Bỏ voiceName cụ thể để tránh lỗi nếu model không hỗ trợ, để mặc định
         },
       });
 
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
-        const binaryString = atob(base64Audio);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
-
-        const audioBuffer = await this.audioCtx.decodeAudioData(bytes.buffer);
-        const source = this.audioCtx.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(this.audioCtx.destination);
-        source.onended = safeOnEnd;
-        source.start();
+        // Sử dụng HTML5 Audio thay vì Web Audio API để ổn định hơn
+        const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
+        audio.onended = safeOnEnd;
+        audio.onerror = (e) => {
+          console.error("Lỗi phát audio:", e);
+          playFallback();
+        };
+        await audio.play();
         return;
       } else {
         throw new Error("AI_NO_AUDIO");

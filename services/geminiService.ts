@@ -215,6 +215,7 @@ export class GeminiService {
         // - Microsoft HoaiMy: Giọng nữ miền Bắc (Windows)
         // 1. Tìm giọng Nữ miền Bắc (ưu tiên cao nhất)
         let viVoice = voices.find(v => v.name.includes('Google') && v.name.includes('Tiếng Việt'))
+          || voices.find(v => v.name.includes('Online')) // Ưu tiên các giọng Edge Online chất lượng cao
           || voices.find(v => v.name.includes('HoaiMy'))
           || voices.find(v => v.name.includes('Lan'))
           || voices.find(v => v.name.includes('Hanoi') && (v.name.includes('Female') || v.name.includes('Nữ')));
@@ -247,17 +248,18 @@ export class GeminiService {
             viVoice.name.includes('Google') ||
             viVoice.name.includes('Trang') ||
             viVoice.name.includes('Thuy') ||
-            viVoice.name.includes('Hương');
+            viVoice.name.includes('Hương') ||
+            viVoice.name.includes('Online');
 
           if (isFemale) {
             utterance.pitch = 1.0;
           } else {
             // Nếu là giọng Nam hoặc không rõ -> Ép pitch cao hẳn (1.9) để giả giọng nữ
-            utterance.pitch = 1.9;
+            utterance.pitch = 2.0;
             utterance.rate = 0.85;
           }
         } else {
-          utterance.pitch = 1.9;
+          utterance.pitch = 2.0;
         }
 
         utterance.onend = safeOnEnd;
@@ -317,13 +319,14 @@ export class GeminiService {
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
           },
         },
       });
 
       const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (base64Audio) {
+        console.log("Đang phát: Giọng mẫu AI (Aoede)");
         const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
         audio.onended = safeOnEnd;
         audio.onerror = (e) => {

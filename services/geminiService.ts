@@ -129,16 +129,16 @@ export class GeminiService {
       console.log("Raw AI response:", rawText);
 
       const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI_RESPONSE_NOT_JSON");
+      if (!jsonMatch) throw new Error("AI_RESPONSE_NOT_JSON: " + (rawText.substring(0, 50) || "Empty"));
       const result = JSON.parse(jsonMatch[0]);
 
       return {
         score: Number(result.score) || 0,
-        comment: result.comment || "Cô chưa nghe rõ, bé đọc lại nhé!"
+        comment: result.comment || "Bé đọc lại nhé!"
       };
     } catch (err: any) {
       console.error("Lỗi evaluateReading:", err);
-      return { score: 0, comment: "Cô đang bận một chút, bé thử lại sau nhé!" };
+      return { score: 0, comment: `LỖI CHẤM ĐIỂM: ${err.message || "Lỗi mạng"}. Bé thử lại nhé!` };
     }
   }
 
@@ -311,12 +311,13 @@ export class GeminiService {
         return;
       }
 
+      console.log("[Gemini TTS] Đang gọi API...");
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
         contents: {
           parts: [{
-            text: `Bạn là một giáo viên tiểu học ở Hà Nội. Hãy đọc văn bản sau bằng giọng nữ miền Bắc chuẩn (accent Hà Nội), nhẹ nhàng, truyền cảm, tốc độ chậm rãi để học sinh lớp 1 dễ dàng nghe và bắt chước theo: "${text}"`
+            text: `Bạn là giáo viên tiểu học Hà Nội. Đọc chuẩn giọng nữ miền Bắc, chậm rãi: "${text}"`
           }]
         },
         config: {
@@ -327,22 +328,25 @@ export class GeminiService {
         },
       });
 
-      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      // Tìm phần chứa dữ liệu audio
+      const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+      const base64Audio = audioPart?.inlineData?.data;
+
       if (base64Audio) {
-        console.log("Đang phát: Giọng mẫu AI (Aoede)");
+        console.log("[Gemini TTS] Thành công. Bắt đầu phát...");
         const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
         audio.onended = safeOnEnd;
         audio.onerror = (e) => {
-          console.error("Lỗi phát audio:", e);
+          console.error("[Gemini TTS] Lỗi phát Audio element:", e);
           playFallback();
         };
         await audio.play();
         return;
       } else {
-        throw new Error("AI_NO_AUDIO");
+        throw new Error("Không có dữ liệu Audio trong phản hồi.");
       }
     } catch (err: any) {
-      console.warn("Lỗi Gemini Audio, chuyển sang giọng máy:", err);
+      console.error("[Gemini TTS] LỖI:", err);
       playFallback();
     }
   }

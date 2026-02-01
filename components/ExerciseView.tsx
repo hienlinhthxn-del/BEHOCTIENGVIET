@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lesson, Exercise, MatchingPair } from '../types';
 import { ChevronLeft, Trophy, Star, Sparkles, X, PartyPopper, Lightbulb, Volume2, CheckCircle2, AlertCircle, Link2, MousePointer2 } from 'lucide-react';
-import { GoogleGenAI, Modality } from '@google/genai';
 import { GeminiService } from '../services/geminiService';
 
 interface ExerciseViewProps {
@@ -38,24 +37,6 @@ const ExerciseView: React.FC<ExerciseViewProps> = ({ lessons, onBack }) => {
     setSelectedWordId(null);
   };
 
-  const decode = (base64: string) => {
-    const binaryString = atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-    return bytes;
-  };
-
-  const decodeAudioData = async (data: Uint8Array, ctx: AudioContext, sampleRate: number, numChannels: number): Promise<AudioBuffer> => {
-    const dataInt16 = new Int16Array(data.buffer, data.byteOffset, data.byteLength / 2);
-    const frameCount = dataInt16.length / numChannels;
-    const buffer = ctx.createBuffer(numChannels, frameCount, sampleRate);
-    for (let channel = 0; channel < numChannels; channel++) {
-      const channelData = buffer.getChannelData(channel);
-      for (let i = 0; i < frameCount; i++) channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
-    }
-    return buffer;
-  };
 
   const handleReadAloud = async (text: string, id: string) => {
     if (isReadingAloud === id) return;

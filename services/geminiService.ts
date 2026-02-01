@@ -94,63 +94,84 @@ export class GeminiService {
 
   // Chấm điểm đọc
   async evaluateReading(audioBase64: string, expectedText: string, mimeType: string = 'audio/webm') {
+    console.log(`Đang gửi audio (${mimeType}, size: ${Math.round(audioBase64.length / 1024)}KB) để chấm điểm...`);
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: {
-        parts: [
-          { inlineData: { data: audioBase64, mimeType } },
-          {
-            text: `Đây là âm thanh học sinh lớp 1 Việt Nam đọc bài: "${expectedText}". 
-          Hãy nghe và chấm điểm từ 0-10 dựa trên độ chính xác và trôi chảy. 
-          Nhận xét thật thân thiện, khích lệ kiểu cô giáo tiểu học (ví dụ: "Con đọc tốt lắm", "Con cần cố gắng vần 'an' nhé").
-          
-          YÊU CẦU TRẢ VỀ THEO ĐỊNH DẠNG SAU (KHÔNG THÊM GÌ KHÁC):
-          DIEM: [số]
-          NHANXET: [lời của cô]` }
-        ]
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents: {
+          parts: [
+            { inlineData: { data: audioBase64, mimeType } },
+            {
+              text: `Đây là âm thanh học sinh lớp 1 Việt Nam luyện đọc: "${expectedText}". 
+            Hãy chấm điểm (0-10) và nhận xét ngắn gọn, thân thiện.
+            
+            BẮT BUỘC TRẢ VỀ DƯỚI DẠNG JSON (KHÔNG THÊM CHỮ KHÁC):
+            {
+              "score": [số từ 0-10],
+              "comment": "[lời nhận xét]"
+            }` }
+          ]
+        }
+      });
+
+      let rawText = "";
+      try {
+        // Một số phiên bản dùng .text(), một số dùng .text
+        rawText = (typeof response.text === 'function') ? await (response as any).text() : (response.text || "");
+      } catch (e) {
+        console.error("Lỗi lấy text từ Gemini:", e);
+        rawText = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
       }
-    });
 
-    const text = response.text || "";
-    const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
-    const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
+      console.log("Raw AI response:", rawText);
 
-    return {
-      score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-      comment: commentMatch ? commentMatch[1].trim() : "Cô chưa nghe rõ, bé đọc lại nhé!"
-    };
+      // Làm sạch chuỗi JSON nếu AI thêm ```json ... ```
+      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+      const result = JSON.parse(cleanedJson);
+
+      return {
+        score: Number(result.score) || 0,
+        comment: result.comment || "Cô chưa nghe rõ, bé đọc lại nhé!"
+      };
+    } catch (err: any) {
+      console.error("Lỗi evaluateReading:", err);
+      // Fallback nếu JSON parse lỗi
+      return { score: 0, comment: "Cô chưa nghe rõ nội dung, bé thử lại nhé!" };
+    }
   }
 
   // Chấm điểm bài tập
   async evaluateExercise(audioBase64: string, question: string, concept: string, mimeType: string = 'audio/webm') {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: {
-        parts: [
-          { inlineData: { data: audioBase64, mimeType } },
-          {
-            text: `Câu hỏi: "${question}". Yêu cầu nhắc đến: "${concept}". 
-          Nghe audio và chấm điểm 0-10.
-          
-          YÊU CẦU TRẢ VỀ THEO ĐỊNH DẠNG:
-          DIEM: [số]
-          NHANXET: [lời của cô]` }
-        ]
-      }
-    });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-1.5-flash',
+        contents: {
+          parts: [
+            { inlineData: { data: audioBase64, mimeType } },
+            {
+              text: `Câu hỏi: "${question}". Yêu cầu nhắc đến: "${concept}". 
+            Chấm điểm và nhận xét (JSON format: { "score": 0-10, "comment": "..." })` }
+          ]
+        }
+      });
 
-    const text = response.text || "";
-    const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
-    const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
+      let rawText = (typeof response.text === 'function') ? await (response as any).text() : (response.text || "");
+      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+      const result = JSON.parse(cleanedJson);
 
-    return {
-      score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-      comment: commentMatch ? commentMatch[1].trim() : "Bé hãy trả lời to hơn nhé!"
-    };
+      return {
+        score: Number(result.score) || 0,
+        comment: result.comment || "Bé trả lời to rõ hơn nhé!"
+      };
+    } catch (err) {
+      console.error("evaluateExercise failed:", err);
+      return { score: 0, comment: "Bé thử trả lời lại nhé!" };
+    }
   }
 
   // Chấm điểm tập viết
@@ -158,29 +179,31 @@ export class GeminiService {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     const ai = new GoogleGenAI({ apiKey });
     const base64Data = imageParts.includes(',') ? imageParts.split(',')[1] : imageParts;
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro',
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType: 'image/png' } },
-          {
-            text: `Ảnh viết chữ: "${expectedText}". Chấm điểm 0-10 và nhận xét.
-          
-          YÊU CẦU ĐỊNH DẠNG:
-          DIEM: [số]
-          NHANXET: [lời của cô]` }
-        ]
-      }
-    });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-1.5-pro',
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType: 'image/png' } },
+            {
+              text: `Ảnh viết chữ: "${expectedText}". Chấm điểm và nhận xét (JSON format: { "score": 0-10, "comment": "..." })`
+            }
+          ]
+        }
+      });
 
-    const text = response.text || "";
-    const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
-    const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
+      let rawText = (typeof response.text === 'function') ? await (response as any).text() : (response.text || "");
+      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+      const result = JSON.parse(cleanedJson);
 
-    return {
-      score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-      comment: commentMatch ? commentMatch[1].trim() : "Bé viết đẹp lắm, cố gắng nhé!"
-    };
+      return {
+        score: Number(result.score) || 0,
+        comment: result.comment || "Bé viết đẹp lắm, cố gắng nhé!"
+      };
+    } catch (err) {
+      console.error("evaluateWriting failed:", err);
+      return { score: 0, comment: "Bé thử viết lại nhé!" };
+    }
   }
 
   // Phát âm văn bản (TTS) với fallback và chẩn đoán

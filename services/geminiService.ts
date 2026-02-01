@@ -1,8 +1,7 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export class GeminiService {
   private static instance: GeminiService;
-  private audioCtx: AudioContext | null = null;
 
   private constructor() { }
 
@@ -13,251 +12,109 @@ export class GeminiService {
     return GeminiService.instance;
   }
 
-  // Trò chuyện giáo dục
-  async chat(message: string) {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
-    const chat = ai.chats.create({
-      model: 'gemini-1.5-pro',
-      config: {
-        systemInstruction: 'Bạn là một trợ lý giáo dục thân thiện dành cho học sinh lớp 1 tại Việt Nam. Hãy trả lời ngắn gọn, dễ hiểu và khích lệ bé học tập.',
-      }
-    });
-    const response = await chat.sendMessage({ message });
-    return response.text;
-  }
+  // Lấy API Key an toàn
+  private getApiKey(): string {
+    let apiKey = '';
+    try {
+      apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY;
+    } catch { }
 
-  // Tìm kiếm thông tin
-  async searchInfo(query: string) {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-flash',
-      contents: query,
-      config: {
-        tools: [{ googleSearch: {} }],
-      }
-    });
-    return {
-      text: response.text,
-      links: response.candidates?.[0]?.groundingMetadata?.groundingChunks || []
-    };
-  }
-
-  // Vẽ tranh
-  async generateImage(prompt: string, size: "1K" | "2K" | "4K" = "1K") {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
-    const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro',
-      contents: { parts: [{ text: prompt }] },
-      config: {
-        imageConfig: { aspectRatio: "1:1", imageSize: size }
-      }
-    });
-
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-        if (part.inlineData) {
-          return `data:image/png;base64,${part.inlineData.data}`;
-        }
-      }
+    if (!apiKey && typeof process !== 'undefined') {
+      apiKey = (process.env as any).VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     }
-    throw new Error("No image generated");
-  }
-
-  // Tạo video
-  async generateVideo(prompt: string, orientation: '16:9' | '9:16' = '16:9') {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
-    let operation = await ai.models.generateVideos({
-      model: 'veo-2.0-generate-preview',
-      prompt: prompt,
-      config: {
-        numberOfVideos: 1,
-        resolution: '720p',
-        aspectRatio: orientation
-      }
-    });
-
-    while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 10000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
-    }
-
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    if (!downloadLink) {
-      throw new Error("Video generation failed");
-    }
-    return `${downloadLink}&key=${apiKey}`;
+    return apiKey || "";
   }
 
   // Chấm điểm đọc
   async evaluateReading(audioBase64: string, expectedText: string, mimeType: string = 'audio/webm') {
-    console.log(`Đang gửi audio (${mimeType}, size: ${Math.round(audioBase64.length / 1024)}KB) để chấm điểm...`);
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
+    console.log(`[Chấm Điểm] Đang gửi bài đọc (${mimeType})...`);
+    const apiKey = this.getApiKey();
+    if (!apiKey) return { score: 0, comment: "LỖI: Chưa cấu hình API Key!" };
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: {
-          parts: [
-            { inlineData: { data: audioBase64, mimeType } },
-            {
-              text: `Đây là âm thanh học sinh lớp 1 Việt Nam luyện đọc: "${expectedText}". 
-            Hãy chấm điểm (0-10) và nhận xét ngắn gọn, thân thiện.
-            
-            BẮT BUỘC TRẢ VỀ DƯỚI DẠNG JSON (KHÔNG THÊM CHỮ KHÁC):
-            {
-              "score": [số từ 0-10],
-              "comment": "[lời nhận xét]"
-            }` }
-          ]
-        }
-      });
+      const result = await model.generateContent([
+        { inlineData: { data: audioBase64, mimeType } },
+        {
+          text: `Bạn là giáo viên lớp 1. Hãy nghe bé đọc: "${expectedText}". 
+        Hãy chấm điểm (0-10) và nhận xét khích lệ. 
+        PHẢI TRẢ VỀ JSON: {"score": số, "comment": "nhận xét"}` }
+      ]);
 
-      let rawText = "";
-      try {
-        // Một số phiên bản dùng .text(), một số dùng .text
-        rawText = (typeof response.text === 'function') ? await (response as any).text() : (response.text || "");
-      } catch (e) {
-        console.error("Lỗi lấy text từ Gemini:", e);
-        rawText = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      }
+      const response = await result.response;
+      const text = response.text();
+      console.log("[AI Response]:", text);
 
-      console.log("Raw AI response:", rawText);
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("AI không trả về đúng định dạng JSON.");
 
-      const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("AI_RESPONSE_NOT_JSON: " + (rawText.substring(0, 50) || "Empty"));
-      const result = JSON.parse(jsonMatch[0]);
-
+      const parsed = JSON.parse(jsonMatch[0]);
       return {
-        score: Number(result.score) || 0,
-        comment: result.comment || "Bé đọc lại nhé!"
+        score: Number(parsed.score) || 0,
+        comment: parsed.comment || "Bé đọc lại nhé!"
       };
     } catch (err: any) {
-      console.error("Lỗi evaluateReading:", err);
-      return { score: 0, comment: `LỖI CHẤM ĐIỂM: ${err.message || "Lỗi mạng"}. Bé thử lại nhé!` };
+      console.error("[Lỗi Chấm Điểm]:", err);
+      return { score: 0, comment: `LỖI: ${err.message || "Không thể kết nối cô Gemini"}` };
     }
   }
 
-  // Chấm điểm bài tập
+  // Chấm điểm bài tập (Dùng chung logic)
   async evaluateExercise(audioBase64: string, question: string, concept: string, mimeType: string = 'audio/webm') {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
-    try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-flash',
-        contents: {
-          parts: [
-            { inlineData: { data: audioBase64, mimeType } },
-            {
-              text: `Câu hỏi: "${question}". Yêu cầu nhắc đến: "${concept}". 
-            Chấm điểm và nhận xét (JSON format: { "score": 0-10, "comment": "..." })` }
-          ]
-        }
-      });
-
-      let rawText = (typeof response.text === 'function') ? await (response as any).text() : (response.text || "");
-      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      const result = JSON.parse(cleanedJson);
-
-      return {
-        score: Number(result.score) || 0,
-        comment: result.comment || "Bé trả lời to rõ hơn nhé!"
-      };
-    } catch (err) {
-      console.error("evaluateExercise failed:", err);
-      return { score: 0, comment: "Bé thử trả lời lại nhé!" };
-    }
+    return this.evaluateReading(audioBase64, `Câu hỏi: ${question}. Phải trả lời đúng ý: ${concept}`, mimeType);
   }
 
   // Chấm điểm tập viết
   async evaluateWriting(imageParts: string, expectedText: string) {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
-    const ai = new GoogleGenAI({ apiKey });
+    const apiKey = this.getApiKey();
+    if (!apiKey) return { score: 0, comment: "LỖI: Chưa có API Key!" };
+
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
     const base64Data = imageParts.includes(',') ? imageParts.split(',')[1] : imageParts;
+
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-1.5-pro',
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType: 'image/png' } },
-            {
-              text: `Ảnh viết chữ: "${expectedText}". Chấm điểm và nhận xét (JSON format: { "score": 0-10, "comment": "..." })`
-            }
-          ]
-        }
-      });
-
-      let rawText = (typeof response.text === 'function') ? await (response as any).text() : (response.text || "");
-      const cleanedJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      const result = JSON.parse(cleanedJson);
-
-      return {
-        score: Number(result.score) || 0,
-        comment: result.comment || "Bé viết đẹp lắm, cố gắng nhé!"
-      };
+      const result = await model.generateContent([
+        { inlineData: { data: base64Data, mimeType: 'image/png' } },
+        { text: `Ảnh viết chữ: "${expectedText}". Chấm điểm 0-10 và nhận xét (JSON: {"score": số, "comment": "..."})` }
+      ]);
+      const response = await result.response;
+      const text = response.text();
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("JSON fail");
+      const parsed = JSON.parse(jsonMatch[0]);
+      return { score: Number(parsed.score) || 0, comment: parsed.comment };
     } catch (err) {
-      console.error("evaluateWriting failed:", err);
       return { score: 0, comment: "Bé thử viết lại nhé!" };
     }
   }
 
-  // Phát âm văn bản (TTS) với fallback và chẩn đoán
+  // Phát âm văn bản (TTS)
   async speak(text: string, onStart: () => void, onEnd: () => void) {
-    // Đảm bảo onEnd luôn được gọi để không bị treo trạng thái
     let hasEnded = false;
-    const safeOnEnd = () => {
-      if (!hasEnded) {
-        hasEnded = true;
-        onEnd();
-      }
-    };
+    const safeOnEnd = () => { if (!hasEnded) { hasEnded = true; onEnd(); } };
 
-    // Hàm fallback dùng giọng đọc của trình duyệt (khi hết quota hoặc lỗi mạng)
     const playFallback = () => {
-      console.log("Dùng giọng đọc trình duyệt (Fallback)");
-      if (typeof window === 'undefined' || !window.speechSynthesis) {
-        safeOnEnd();
-        return;
-      }
+      console.log("[TTS] Chuyển vùng sang giọng máy.");
       window.speechSynthesis.cancel();
-
       let voices = window.speechSynthesis.getVoices();
 
       const doSpeak = () => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'vi-VN';
 
-        // Log all voices to help remote debugging
-        if (voices.length > 0 && !(window as any).hasLoggedVoices) {
-          console.log("Danh sách giọng đọc khả dụng:");
-          console.table(voices.map(v => ({ name: v.name, lang: v.lang })));
-          (window as any).hasLoggedVoices = true;
-        }
-
-        // 1. Tìm giọng phù hợp (Ưu tiên Online/Nữ)
-        let viVoice = voices.find(v => v.name.includes('Online') && (v.name.includes('HoaiMy') || v.name.includes('Lan') || v.name.includes('Trang')))
+        // Tìm giọng tốt nhất
+        let viVoice = voices.find(v => v.name.includes('Online') && (v.name.includes('HoaiMy') || v.name.includes('Lan')))
           || voices.find(v => v.name.includes('Google') && v.name.includes('Tiếng Việt'))
-          || voices.find(v => v.name.includes('HoaiMy') || v.name.includes('Lan') || v.name.includes('Linh'))
-          || voices.find(v => (v.name.includes('Female') || v.name.includes('Nữ')) && (v.lang.startsWith('vi')))
           || voices.find(v => v.lang.startsWith('vi'));
 
         if (viVoice) {
           utterance.voice = viVoice;
-          const name = viVoice.name.toLowerCase();
-          const femaleKeywords = ['female', 'nữ', 'hoaimy', 'lan', 'linh', 'online', 'trang', 'thuy', 'hương'];
-          const isFemale = femaleKeywords.some(k => name.includes(k));
-
-          console.log(`[Giọng Máy] Chọn: ${viVoice.name} (${isFemale ? "Nữ" : "Nam - Ép giọng"})`);
-
-          if (isFemale) {
-            utterance.pitch = 1.0;
-            utterance.rate = 0.9;
-          } else {
-            console.warn("[Giọng Máy] Đang dùng giọng Nam với pitch 2.0");
+          const isFemale = /female|nữ|hoaimy|lan|linh|online|trang/i.test(viVoice.name);
+          console.log(`[TTS Fallback] Giọng: ${viVoice.name} (${isFemale ? "Nữ" : "Nam - Ép giọng"})`);
+          if (!isFemale) {
             utterance.pitch = 2.0;
             utterance.rate = 0.8;
           }
@@ -266,24 +123,12 @@ export class GeminiService {
         }
 
         utterance.onend = safeOnEnd;
-        utterance.onerror = (e) => {
-          console.error("[TTS] Lỗi:", e);
-          safeOnEnd();
-        };
+        utterance.onerror = safeOnEnd;
         window.speechSynthesis.speak(utterance);
       };
 
-      // Xử lý trường hợp trình duyệt chưa load kịp danh sách giọng
       if (voices.length === 0) {
-        window.speechSynthesis.onvoiceschanged = () => {
-          voices = window.speechSynthesis.getVoices();
-          doSpeak();
-          window.speechSynthesis.onvoiceschanged = null;
-        };
-        // Fallback an toàn
-        setTimeout(() => {
-          if (!window.speechSynthesis.speaking) doSpeak();
-        }, 300);
+        window.speechSynthesis.onvoiceschanged = () => { voices = window.speechSynthesis.getVoices(); doSpeak(); };
       } else {
         doSpeak();
       }
@@ -291,63 +136,44 @@ export class GeminiService {
 
     try {
       onStart();
+      const apiKey = this.getApiKey();
+      if (!apiKey) { playFallback(); return; }
 
-      // Lấy API Key từ nhiều nguồn để đảm bảo không bị lỗi undefined
-      let apiKey = '';
-      try {
-        apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      } catch {
-        // Ignore if import.meta is not available
-      }
+      const genAI = new GoogleGenerativeAI(apiKey);
+      // Sử dụng gemini-1.5-flash với API chuẩn
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      if (!apiKey && typeof process !== 'undefined') {
-        apiKey = (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
-      }
+      console.log("[TTS] Đang gọi cô Gemini đọc...");
+      const result = await model.generateContent([
+        { text: `Bạn là giáo viên Hà Nội. Đọc chuẩn giọng nữ miền Bắc, chậm rãi: "${text}"` }
+      ]);
 
-      // Chẩn đoán lỗi API Key
-      if (!apiKey || apiKey.includes("PLACEHOLDER") || apiKey.length < 10) {
-        console.warn("Chưa có API Key, dùng giọng máy tính ngay lập tức.");
-        playFallback();
-        return;
-      }
-
-      console.log("[Gemini TTS] Đang gọi API...");
-      const ai = new GoogleGenAI({ apiKey });
-      const response = await ai.models.generateContent({
-        model: "gemini-1.5-flash",
-        contents: {
-          parts: [{
-            text: `Bạn là giáo viên tiểu học Hà Nội. Đọc chuẩn giọng nữ miền Bắc, chậm rãi: "${text}"`
-          }]
-        },
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
-          },
-        },
-      });
-
-      // Tìm phần chứa dữ liệu audio
+      // Hỗ trợ Audio modality nếu có (Lưu ý: Một số vùng chưa bật Audio output cho public SDK)
+      // Nếu không hỗ trợ inlineData audio, fallback về giọng máy
+      const response = await result.response;
+      // Ở phiên bản SDK hiện tại, Audio được trả về qua inlineData trong parts
       const audioPart = response.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      const base64Audio = audioPart?.inlineData?.data;
 
-      if (base64Audio) {
-        console.log("[Gemini TTS] Thành công. Bắt đầu phát...");
-        const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
+      if (audioPart?.inlineData?.data) {
+        const audio = new Audio(`data:audio/wav;base64,${audioPart.inlineData.data}`);
         audio.onended = safeOnEnd;
-        audio.onerror = (e) => {
-          console.error("[Gemini TTS] Lỗi phát Audio element:", e);
-          playFallback();
-        };
+        audio.onerror = playFallback;
         await audio.play();
-        return;
       } else {
-        throw new Error("Không có dữ liệu Audio trong phản hồi.");
+        console.warn("[TTS] AI không trả về âm thanh, dùng giọng máy thay thế.");
+        playFallback();
       }
-    } catch (err: any) {
-      console.error("[Gemini TTS] LỖI:", err);
+    } catch (err) {
+      console.error("[TTS AI Error]:", err);
       playFallback();
     }
+  }
+
+  // Chat/Search (Rút gọn)
+  async chat(message: string) {
+    const genAI = new GoogleGenerativeAI(this.getApiKey());
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const result = await model.generateContent(message);
+    return result.response.text();
   }
 }

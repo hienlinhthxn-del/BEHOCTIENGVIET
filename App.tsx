@@ -236,6 +236,10 @@ const App: React.FC = () => {
       {editingLesson && (
         <LessonEditor lesson={editingLesson} onSave={handleSaveLesson} onCancel={() => setEditingLesson(null)} onReset={() => { }} />
       )}
+      {/* Version Indicator */}
+      <div style={{ position: 'fixed', bottom: '2px', right: '5px', fontSize: '10px', color: '#ddd', pointerEvents: 'none', zIndex: 9999 }}>
+        V1.7 - AI Fix
+      </div>
     </div>
   );
 };

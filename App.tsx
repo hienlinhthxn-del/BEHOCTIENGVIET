@@ -238,7 +238,7 @@ const App: React.FC = () => {
       )}
       {/* Version Indicator */}
       <div style={{ position: 'fixed', bottom: '2px', right: '5px', fontSize: '10px', color: '#ddd', pointerEvents: 'none', zIndex: 9999 }}>
-        V1.7 - AI Fix
+        V1.8 - Final AI & Storage Fix
       </div>
     </div>
   );

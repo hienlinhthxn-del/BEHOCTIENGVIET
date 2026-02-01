@@ -22,6 +22,13 @@ export class GeminiService {
     if (!apiKey && typeof process !== 'undefined') {
       apiKey = (process.env as any).VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     }
+
+    if (apiKey) {
+      console.log(`[Gemini Info] API Key found (Length: ${apiKey.length}, Starts with: ${apiKey.substring(0, 4)}...)`);
+    } else {
+      console.error("[Gemini Error] API Key NOT FOUND!");
+    }
+
     return apiKey || "";
   }
 

@@ -1,9 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Lesson, Exercise, ProgressRecord, MatchingPair } from '../types';
-import { uploadAudioFile } from '../firebase';
 import { ChevronLeft, Mic, Volume2, BookOpen, Star, Loader2, X, Square, Trophy, Lightbulb, Sparkles, Edit3, Play, Download, Trash2, Headphones, Filter, Link2, MousePointer2 } from 'lucide-react';
-import { GoogleGenAI, Modality } from '@google/genai';
 import { GeminiService } from '../services/geminiService';
 
 interface ReadingViewProps {
@@ -142,13 +140,8 @@ const ReadingView: React.FC<ReadingViewProps> = ({ lessons, onBack, isTeacherMod
           return;
         }
 
-        // Upload lên Firebase Storage (nếu có thể)
-        let cloudAudioUrl = "";
-        if (activeStudentId) {
-          try {
-            cloudAudioUrl = await uploadAudioFile(audioBlob, activeStudentId);
-          } catch (err) { console.error("Upload failed", err); }
-        }
+        // Bỏ qua upload lên Firebase Storage để tránh lỗi (dùng Base64)
+        const cloudAudioUrl = "";
 
         const reader = new FileReader();
         reader.readAsDataURL(audioBlob);

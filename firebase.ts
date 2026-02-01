@@ -59,10 +59,17 @@ export const getProgressFromFirebase = async (): Promise<ProgressRecord[]> => {
  * @returns URL của file âm thanh để nghe lại
  */
 export const uploadAudioFile = async (audioBlob: Blob, studentId: string): Promise<string> => {
-    // Vì không kích hoạt được Firebase Storage (do yêu cầu thẻ tín dụng), 
-    // chúng ta sẽ bỏ qua bước upload âm thanh.
-    console.log("Bỏ qua upload âm thanh vì chưa cấu hình Storage.");
-    return "";
+    try {
+        // Tạo tên file duy nhất: recordings/Mã_HS/Thời_gian.webm
+        const filename = `recordings/${studentId}/${Date.now()}.webm`;
+        const storageRef = ref(storage, filename);
+        const snapshot = await uploadBytes(storageRef, audioBlob);
+        const downloadURL = await getDownloadURL(snapshot.ref);
+        return downloadURL;
+    } catch (error) {
+        console.error("Lỗi upload file lên Storage:", error);
+        return "";
+    }
 };
 
 export { db, storage };

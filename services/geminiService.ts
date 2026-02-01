@@ -93,14 +93,14 @@ export class GeminiService {
   }
 
   // Chấm điểm đọc
-  async evaluateReading(audioBase64: string, expectedText: string) {
+  async evaluateReading(audioBase64: string, expectedText: string, mimeType: string = 'audio/webm') {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: {
         parts: [
-          { inlineData: { data: audioBase64, mimeType: 'audio/webm' } },
+          { inlineData: { data: audioBase64, mimeType } },
           {
             text: `Đây là âm thanh học sinh lớp 1 Việt Nam đọc bài: "${expectedText}". 
           Hãy nghe và chấm điểm từ 0-10 dựa trên độ chính xác và trôi chảy. 
@@ -113,42 +113,43 @@ export class GeminiService {
       }
     });
 
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = response.text || "";
     const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
     const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
 
     return {
       score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-      comment: commentMatch ? commentMatch[1] : "Cô chưa nghe rõ, bé đọc lại nhé!"
+      comment: commentMatch ? commentMatch[1].trim() : "Cô chưa nghe rõ, bé đọc lại nhé!"
     };
   }
 
   // Chấm điểm bài tập
-  async evaluateExercise(audioBase64: string, question: string, concept: string) {
+  async evaluateExercise(audioBase64: string, question: string, concept: string, mimeType: string = 'audio/webm') {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY;
     const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: 'gemini-1.5-flash',
       contents: {
         parts: [
-          { inlineData: { data: audioBase64, mimeType: 'audio/webm' } },
+          { inlineData: { data: audioBase64, mimeType } },
           {
             text: `Câu hỏi: "${question}". Yêu cầu nhắc đến: "${concept}". 
           Nghe audio và chấm điểm 0-10.
-          Định dạng:
+          
+          YÊU CẦU TRẢ VỀ THEO ĐỊNH DẠNG:
           DIEM: [số]
           NHANXET: [lời của cô]` }
         ]
       }
     });
 
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = response.text || "";
     const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
     const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
 
     return {
       score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-      comment: commentMatch ? commentMatch[1] : "Bé hãy trả lời to hơn nhé!"
+      comment: commentMatch ? commentMatch[1].trim() : "Bé hãy trả lời to hơn nhé!"
     };
   }
 
@@ -164,20 +165,21 @@ export class GeminiService {
           { inlineData: { data: base64Data, mimeType: 'image/png' } },
           {
             text: `Ảnh viết chữ: "${expectedText}". Chấm điểm 0-10 và nhận xét.
-          Định dạng:
+          
+          YÊU CẦU ĐỊNH DẠNG:
           DIEM: [số]
           NHANXET: [lời của cô]` }
         ]
       }
     });
 
-    const text = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const text = response.text || "";
     const scoreMatch = text.match(/DIEM:\s*(\d+)/i);
     const commentMatch = text.match(/NHANXET:\s*([\s\S]+)/i);
 
     return {
       score: scoreMatch ? parseInt(scoreMatch[1]) : 0,
-      comment: commentMatch ? commentMatch[1] : "Bé viết đẹp lắm, cố gắng nhé!"
+      comment: commentMatch ? commentMatch[1].trim() : "Bé viết đẹp lắm, cố gắng nhé!"
     };
   }
 

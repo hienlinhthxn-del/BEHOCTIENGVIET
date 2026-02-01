@@ -130,11 +130,19 @@ const ReadingView: React.FC<ReadingViewProps> = ({ lessons, onBack, isTeacherMod
       const recorder = new MediaRecorder(stream);
       recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         const url = URL.createObjectURL(audioBlob);
         setRecordedAudioUrl(url);
 
-        // Upload lên Firebase nếu có thông tin học sinh
+        // Kiểm tra độ dài âm thanh (tránh ghi âm trắng)
+        if (audioChunksRef.current.length === 0 || audioBlob.size < 1000) {
+          alert("Ghi âm quá ngắn hoặc không có tiếng, bé thử lại nhé!");
+          setIsRecording(null);
+          return;
+        }
+
+        // Upload lên Firebase Storage (nếu có thể)
         let cloudAudioUrl = "";
         if (activeStudentId) {
           try {
@@ -150,22 +158,25 @@ const ReadingView: React.FC<ReadingViewProps> = ({ lessons, onBack, isTeacherMod
           try {
             let result;
             if (isExercise && activeExercise) {
-              result = await gemini.evaluateExercise(base64Audio, activeExercise.question, activeExercise.expectedConcept);
+              result = await gemini.evaluateExercise(base64Audio, activeExercise.question, activeExercise.expectedConcept, mimeType);
             } else {
-              result = await gemini.evaluateReading(base64Audio, fullText);
+              result = await gemini.evaluateReading(base64Audio, fullText, mimeType);
             }
             setGradeResult(result);
+
+            // Luôn lưu kết quả bài làm
             onSaveProgress({
               lessonId: selectedLesson!.id,
               lessonTitle: selectedLesson!.title,
               activityType: 'reading',
               score: result.score,
               comment: result.comment,
-              audioUrl: cloudAudioUrl || url, // Ưu tiên link Firebase để giáo viên nghe được từ xa
-              audioBase64: base64Audio // Lưu trữ bền vững
+              audioUrl: cloudAudioUrl || url,
+              audioBase64: base64Audio
             });
           } catch (err) {
-            console.error(err);
+            console.error("Lỗi chấm điểm:", err);
+            alert("Cô Gemini đang bận một chút, bé thử lại sau nhé!");
           } finally {
             setIsGrading(false);
           }

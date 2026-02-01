@@ -197,6 +197,7 @@ export class GeminiService {
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'vi-VN';
       utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
+      utterance.pitch = 1.2; // Tăng cao độ để giọng trong trẻo hơn (giống cô giáo/trẻ em)
 
       // Cố gắng tìm giọng Google Tiếng Việt (thường là Nữ miền Bắc) hoặc giọng Việt bất kỳ
       const voices = window.speechSynthesis.getVoices();
@@ -233,11 +234,11 @@ export class GeminiService {
       const ai = new GoogleGenAI({ apiKey });
       const response = await ai.models.generateContent({
         model: "gemini-1.5-flash",
-        contents: `Đọc văn bản sau bằng tiếng Việt, giọng nữ miền Bắc, nhẹ nhàng, chuẩn xác: "${text}"`,
+        contents: `Hãy đọc văn bản sau bằng giọng nữ miền Bắc, nhẹ nhàng: "${text}"`,
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
           },
         },
       });

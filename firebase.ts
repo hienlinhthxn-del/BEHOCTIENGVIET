@@ -5,7 +5,8 @@ import { ProgressRecord } from "./types";
 
 // --- CẤU HÌNH FIREBASE (Thay bằng thông tin từ Firebase Console của bạn) ---
 const firebaseConfig = {
-    apiKey: "AIzaSyBsOXXDcvpPOOxvJDU215p-mnc16z4ljYE",
+    // Ưu tiên lấy từ biến môi trường (nếu cấu hình trên Vercel), nếu không thì dùng key cứng
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBsOXXDcvpPOOxvJDU215p-mnc16z4ljYE",
     authDomain: "behoctiengviet-ebb43.firebaseapp.com",
     projectId: "behoctiengviet-ebb43",
     storageBucket: "behoctiengviet-ebb43.firebasestorage.app",

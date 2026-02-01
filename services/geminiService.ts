@@ -194,149 +194,113 @@ export class GeminiService {
     const playFallback = () => {
       console.log("Dùng giọng đọc trình duyệt (Fallback)");
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'vi-VN';
-      utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
 
-      // Lấy danh sách giọng hiện tại
       let voices = window.speechSynthesis.getVoices();
 
-      // CHIẾN THUẬT CHỌN GIỌNG:
-      const voices = window.speechSynthesis.getVoices();
-      // Hàm thực hiện đọc (được gọi ngay hoặc sau khi giọng load xong)
       const doSpeak = () => {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'vi-VN';
-        utterance.rate = 0.9;
+        utterance.rate = 0.9; // Đọc chậm một chút cho bé dễ nghe
 
-        // 1. Ưu tiên tuyệt đối các giọng Nữ chuẩn
-        let viVoice = voices.find(v => v.name === 'Google Tiếng Việt') // Chrome (Nữ miền Bắc)
-          || voices.find(v => v.name.includes('HoaiMy')) // Windows (Nữ miền Bắc)
-          || voices.find(v => v.name.includes('Linh'));  // iOS (Nữ)
-        // Cập nhật lại danh sách giọng (phòng trường hợp lúc đầu rỗng)
-        if (voices.length === 0) voices = window.speechSynthesis.getVoices();
-
-        // 2. Nếu không có, tìm giọng bất kỳ có chữ Female/Nữ
-        if (!viVoice) {
-          viVoice = voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && (v.name.includes('Female') || v.name.includes('Nữ')));
-        }
-        // 1. Ưu tiên giọng Nữ chuẩn (Google, HoaiMy, Linh)
+        // 1. Ưu tiên tuyệt đối các giọng Nữ miền Bắc chuẩn
+        // - Google Tiếng Việt: Giọng nữ miền Bắc (Chrome)
+        // - Microsoft HoaiMy: Giọng nữ miền Bắc (Windows)
         let viVoice = voices.find(v => v.name === 'Google Tiếng Việt')
-          || voices.find(v => v.name.includes('HoaiMy'))
-          || voices.find(v => v.name.includes('Linh'));
+          || voices.find(v => v.name.includes('HoaiMy'));
 
-        // 3. Đường cùng: Lấy bất kỳ giọng Việt nào (thường là Microsoft An)
+        // 2. Nếu không có, tìm giọng Nữ khác (Linh - iOS, hoặc generic Female)
+        if (!viVoice) {
+          viVoice = voices.find(v => v.name.includes('Linh')) ||
+            voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && (v.name.includes('Female') || v.name.includes('Nữ')));
+        }
+
+        // 3. Đường cùng: Lấy bất kỳ giọng Việt nào
         if (!viVoice) {
           viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
-        }
-        // 2. Tìm giọng có chữ Female/Nữ
-        if (!viVoice) {
-          viVoice = voices.find(v => (v.lang.includes('vi') || v.name.includes('Vietnamese')) && (v.name.includes('Female') || v.name.includes('Nữ')));
         }
 
         if (viVoice) {
           utterance.voice = viVoice;
-          // QUAN TRỌNG: Nếu phát hiện giọng Nam (An, Nam, Male), tăng Pitch thật cao để giả giọng Nữ
-          if (viVoice.name.includes('An') || viVoice.name.includes('Nam') || viVoice.name.includes('Male')) {
-            utterance.pitch = 1.8; // Mức 1.8 sẽ biến giọng nam trầm thành giọng thanh
-            // 3. Lấy bất kỳ giọng Việt nào còn lại
-            if (!viVoice) {
-              viVoice = voices.find(v => v.lang.includes('vi') || v.name.includes('Vietnamese'));
-            }
-
-            if (viVoice) {
-              utterance.voice = viVoice;
-              // CHIẾN THUẬT PITCH MỚI:
-              // Nếu KHÔNG PHẢI là các giọng nữ đã biết -> Mặc định coi là Nam và tăng Pitch lên 1.6
-              if (viVoice.name === 'Google Tiếng Việt' || viVoice.name.includes('HoaiMy') || viVoice.name.includes('Linh') || viVoice.name.includes('Female') || viVoice.name.includes('Nữ')) {
-                utterance.pitch = 1.0; // Giọng nữ chuẩn thì để tự nhiên
-              } else {
-                utterance.pitch = 1.6; // Giọng lạ/Nam -> Tăng cao độ để giả giọng nữ
-              }
-            } else {
-              utterance.pitch = 1.1; // Giọng nữ thì giữ tự nhiên
-              // Không tìm thấy giọng Việt nào -> Dùng giọng hệ thống nhưng ép pitch cao
-              utterance.pitch = 1.6;
-            }
-
-            utterance.onend = safeOnEnd;
-            utterance.onerror = (e) => {
-              console.error("Lỗi giọng đọc trình duyệt:", e);
-              safeOnEnd();
-            };
-            window.speechSynthesis.speak(utterance);
-          };
-
-          // Xử lý trường hợp trình duyệt chưa load kịp danh sách giọng (Chrome thường bị)
-          if (voices.length === 0) {
-            window.speechSynthesis.onvoiceschanged = () => {
-              voices = window.speechSynthesis.getVoices();
-              doSpeak();
-              window.speechSynthesis.onvoiceschanged = null; // Cleanup sự kiện
-            };
-            // Fallback an toàn: nếu sau 300ms không có sự kiện thì cứ đọc đại
-            setTimeout(() => {
-              if (window.speechSynthesis.speaking) return;
-              doSpeak();
-            }, 300);
+          // Nếu là giọng nữ chuẩn (Google, HoaiMy, Linh) -> Pitch bình thường
+          if (viVoice.name === 'Google Tiếng Việt' || viVoice.name.includes('HoaiMy') || viVoice.name.includes('Linh') || viVoice.name.includes('Female') || viVoice.name.includes('Nữ')) {
+            utterance.pitch = 1.0;
           } else {
-            // Không tìm thấy giọng nào, cứ tăng pitch đề phòng mặc định là nam
+            // Nếu phải dùng giọng Nam/Khác -> Tăng pitch để giả giọng nữ
             utterance.pitch = 1.6;
-            doSpeak();
           }
-
-          utterance.onend = safeOnEnd;
-          utterance.onerror = (e) => {
-            console.error("Lỗi giọng đọc trình duyệt:", e);
-            safeOnEnd();
-          };
-          window.speechSynthesis.speak(utterance);
-        };
-
-        try {
-          onStart();
-
-          // Lấy API Key từ nhiều nguồn để đảm bảo không bị lỗi undefined
-          const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
-
-          // Chẩn đoán lỗi API Key
-          if (!apiKey || apiKey.includes("PLACEHOLDER") || apiKey.length < 10) {
-            // Nếu không có key, chuyển ngay sang fallback để tránh delay gây lỗi trên mobile
-            console.warn("Chưa có API Key, dùng giọng máy tính ngay lập tức.");
-            playFallback();
-            return;
-          }
-
-          const ai = new GoogleGenAI({ apiKey });
-          const response = await ai.models.generateContent({
-            model: "gemini-1.5-flash",
-            contents: `Hãy đọc văn bản sau bằng giọng nữ miền Bắc, nhẹ nhàng: "${text}"`,
-            contents: `Đọc văn bản sau với giọng nữ, tình cảm, dành cho trẻ em: "${text}"`,
-            config: {
-              responseModalities: [Modality.AUDIO],
-              speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
-              },
-            },
-          });
-
-          const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-          if (base64Audio) {
-            // Sử dụng HTML5 Audio thay vì Web Audio API để ổn định hơn
-            const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
-            audio.onended = safeOnEnd;
-            audio.onerror = (e) => {
-              console.error("Lỗi phát audio:", e);
-              playFallback();
-            };
-            await audio.play();
-            return;
-          } else {
-            throw new Error("AI_NO_AUDIO");
-          }
-        } catch (err: any) {
-          console.warn("Lỗi Gemini Audio, chuyển sang giọng máy:", err);
-          playFallback();
+        } else {
+          // Không tìm thấy giọng Việt nào -> Dùng giọng hệ thống ép pitch cao
+          utterance.pitch = 1.6;
         }
+
+        utterance.onend = safeOnEnd;
+        utterance.onerror = (e) => {
+          console.error("Lỗi giọng đọc trình duyệt:", e);
+          safeOnEnd();
+        };
+        window.speechSynthesis.speak(utterance);
+      };
+
+      // Xử lý trường hợp trình duyệt chưa load kịp danh sách giọng
+      if (voices.length === 0) {
+        window.speechSynthesis.onvoiceschanged = () => {
+          voices = window.speechSynthesis.getVoices();
+          doSpeak();
+          window.speechSynthesis.onvoiceschanged = null;
+        };
+        // Fallback an toàn
+        setTimeout(() => {
+          if (!window.speechSynthesis.speaking) doSpeak();
+        }, 300);
+      } else {
+        doSpeak();
       }
     }
+
+    try {
+      onStart();
+
+      // Lấy API Key từ nhiều nguồn để đảm bảo không bị lỗi undefined
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (process.env as any).GEMINI_API_KEY || (process.env as any).API_KEY;
+
+      // Chẩn đoán lỗi API Key
+      if (!apiKey || apiKey.includes("PLACEHOLDER") || apiKey.length < 10) {
+        console.warn("Chưa có API Key, dùng giọng máy tính ngay lập tức.");
+        playFallback();
+        return;
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
+      const response = await ai.models.generateContent({
+        model: "gemini-1.5-flash",
+        contents: {
+          parts: [{
+            text: `Hãy đọc văn bản sau bằng giọng nữ miền Bắc, nhẹ nhàng, chuẩn tiếng Việt, dành cho học sinh lớp 1: "${text}"`
+          }]
+        },
+        config: {
+          responseModalities: [Modality.AUDIO],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Aoede' } }
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        const audio = new Audio(`data:audio/wav;base64,${base64Audio}`);
+        audio.onended = safeOnEnd;
+        audio.onerror = (e) => {
+          console.error("Lỗi phát audio:", e);
+          playFallback();
+        };
+        await audio.play();
+        return;
+      } else {
+        throw new Error("AI_NO_AUDIO");
+      }
+    } catch (err: any) {
+      console.warn("Lỗi Gemini Audio, chuyển sang giọng máy:", err);
+      playFallback();
+    }
+  }
